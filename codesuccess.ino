@@ -5,17 +5,15 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 
-#define SS_PIN D4 //            config variable SS_PIN = D4 or D4(GPIO5)
-#define RTS_PIN D3 //           config variable RTS_PIN = D3 or D3(GPIO5)
+#define SS_PIN D4 //            config variable SS_PIN = D4 or D4(GPIO2)
+#define RTS_PIN D3 //           config variable RTS_PIN = D3 or D3(GPIO0)
 #define ssid "Pattapon" //      config variable ssid = "Pattapon"
 #define pass "pattapon123" //   config variable pass = "pattapon123"
 #define _roomid 1  //           config variable _roomid = 1
-#define BUZZER 14 //D5          config variable BUZZER = 14 or GPIO14(D5)
-#define LED_GREEN 12 //D6       config variable LED_GREEN = 12 or GPIO12(D6)
-#define LED_RED 13 //D7         config variable LED_RED = 13 or GPIO13(D7)
+#define BUZZER D8 //D5          config variable BUZZER = 14 or GPIO14(D5)
 
 RFID rfid(SS_PIN, RTS_PIN);//   config RFID use SS_PIN and RTS_PIN
-Adafruit_SSD1306 OLED(-1)
+Adafruit_SSD1306 OLED(-1);
 
 int i ;
 int serNum0;
@@ -41,9 +39,7 @@ void setup(){
     Serial.begin(115200); //config buad rate
     SPI.begin(); // SPI start
     rfid.init();  // rfid start
-    pinMode(BUZZER,OUTPUT); // config BUZZER is OUTPUT
-    pinMode(LED_GREEN,OUTPUT);
-    pinMode(LED_RED,OUTPUT);
+    pinMode(BUZZER, OUTPUT); // config BUZZER is OUTPUT
     OLED.begin(SSD1306_SWITCHCAPVCC, 0x3C);
     WiFi.begin(ssid,pass); //config Connect WiFi with ssid and pass
     
@@ -51,7 +47,7 @@ void setup(){
    {
       OLED.clearDisplay();
       OLED.setTextColor(WHITE);
-      OLED.setTextSize(2);
+      OLED.setTextSize(1);
       OLED.setCursor(0,0);
       OLED.print("Wait connect WiFi..");
       OLED.display();
@@ -60,26 +56,33 @@ void setup(){
    }
     OLED.clearDisplay();
     OLED.setTextColor(WHITE);
-    OLED.setTextSize(2);
+    OLED.setTextSize(1);
     OLED.setCursor(0,0);
     OLED.print("WiFi connected");
+    OLED.display();
+    delay(500);
+    OLED.setCursor(0,18);
+    OLED.print("Ready!");
+    OLED.display();
+    delay(500);
+    OLED.clearDisplay();
     OLED.display();
     Serial.println("");
     Serial.println("WiFi connected"); 
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP()); //print ip adress wifi
-    
-    digitalWrite(BUZZER,LOW);     //give BUZZER OFF
-    digitalWrite(LED_GREEN,LOW);
-    digitalWrite(LED_RED,LOW);
-    DisplayWAiT_CARD();
 }
 
 void loop(){
     DisplayTitle();
     DisplayWAiT_CARD();
     serNum = response = ""; //give sernum and variable response empty
+    Serial.println("Please tag CARD");
     if(rfid.isCard()){ // if have scan id card
+        digitalWrite(BUZZER, HIGH);
+        delayMicroseconds(500);
+        digitalWrite(BUZZER, LOW);
+        delayMicroseconds(500);
         if(rfid.readCardSerial()) //if status read id card success
         {
             serNum0 = rfid.serNum[0]; //serNum0  = rfid number at index 0  
@@ -93,18 +96,15 @@ void loop(){
             serNum += String(serNum3)+'-';
             serNum += String(serNum4);        // serNum = serNum0+'-'+serNum1+'-'+serNum2+'-'+serNum3+'-'+serNum4
                                               // example serNum = 111-111-111-111-111
+            OLED.clearDisplay();
+            OLED.display();
+            OLED.setTextColor(WHITE);
+            OLED.setTextSize(1);
+            OLED.setCursor(0,18);
+            OLED.print("Wait Check CARD");
+            OLED.display();
+            Serial.println("OLED work! Wait Check CARD");
             response = ScanRFID_GET(serNum);  //response = value return from function ScanRFID_GET and parameter serNum
-            if(response.length() > 0){        //if response length > 0 
-                digitalWrite(BUZZER,HIGH);   
-                digitalWrite(LED_GREEN,HIGH);
-                digitalWrite(LED_RED,LOW); // BUZZER ON, LED_GREEN ON, LED_RED OFF
-                delay(1000);              //delay 1 second
-            }else{                            // if response length < 0 
-                digitalWrite(BUZZER,HIGH);
-                digitalWrite(LED_GREEN,LOW);
-                digitalWrite(LED_RED,HIGH); // BUZZER, LED_GREEN OFF, LED_RED ON
-                delay(1000);            //delay 1 second
-            }
             Serial.print("ID Card : "); Serial.println(serNum);
             JsonArray& root = jsonBuffer.parseArray(response); //tranform response(is string) to JSON root
             JsonObject& root_0 = root[0]; //give root at index 0 = root_0 is JSON  object example {name:"chai",lastname:"wat"}
@@ -124,7 +124,6 @@ void loop(){
             }else{
               CardNotFound();
             }
-           
         }
     }
     rfid.halt();  //stop rfid   
@@ -147,8 +146,8 @@ String ScanRFID_GET (String rfid_num) {   //function ScanRFID_GET and parameter 
         _str += "\r\n";
         _str += "Connection: keep-alive\r\n\r\n"; //Get pattern read : https://www.w3schools.com/tags/ref_httpmethods.asp
         client.print(_str); //use _str(Get pattern)
-        delay(3000);  //delay 3 second
-        Serial.println("Send Data to Database");
+        delay(1000);  //delay 1 second
+        Serial.println("Send Data to Server");
         while (client.available()) {    //loop check response from server
             _res = client.readStringUntil('\r'); //give _res = response value from server
         }
@@ -179,8 +178,8 @@ String ScanRFID_POST (String rfid_num) { // Same as the GET function but is POST
         _str += "\r\n";
         _str += "Connection: keep-alive\r\n\r\n"; //POST pattern read : https://www.w3schools.com/tags/ref_httpmethods.asp
         client.print(_str);
-        delay(3000);
-        Serial.println("Send Data to Database");
+        delay(1000);
+        Serial.println("Send Data to Server");
         while (client.available()) {
             _res = client.readStringUntil('\r');
         }
@@ -193,40 +192,47 @@ String ScanRFID_POST (String rfid_num) { // Same as the GET function but is POST
 
 void DisplayWAiT_CARD()
 {
-  OLED.clearDisplay();
   OLED.setTextColor(WHITE);
-  OLED.setTextSize(2);
-  OLED.setCursor(0,15);
+  OLED.setTextSize(1);
+  OLED.setCursor(0,18);
   OLED.print("Please Tag Card");
   OLED.display();
 }
 
 void DisplayTitle()
 {
-  OLED.clearDisplay();
   OLED.setTextColor(WHITE);
-  OLED.setTextSize(2);
+  OLED.setTextSize(1);
   OLED.setCursor(0,0);
-  OLED.print("    WELCOME    ");
+  OLED.print("WELCOME");
   OLED.display();
 }
 
-void FoundCARD(String username){
+void FoundCard(String username){
   OLED.clearDisplay();
   OLED.setTextColor(WHITE);
-  OLED.setTextSize(2);
-  OLED.setCursor(0,15);
+  OLED.setTextSize(1);
+  OLED.setCursor(0,10);
   OLED.print("Hi  ");
-  OLED.setCursor(0,19);
+  OLED.setCursor(0,18);
   OLED.print(username);
+  OLED.display();
+  Serial.print("OLED work! Hi  ");
+  Serial.println(username);
+  delay(3000);
+  OLED.clearDisplay();
   OLED.display();
 }
 
 void CardNotFound(){
   OLED.clearDisplay();
   OLED.setTextColor(WHITE);
-  OLED.setTextSize(2);
-  OLED.setCursor(0,15);
-  OLED.print("Card not Found");
+  OLED.setTextSize(1);
+  OLED.setCursor(0,18);
+  OLED.print("No access to the room");
+  OLED.display();
+  Serial.print("OLED work! No access to the room");
+  delay(1000);
+  OLED.clearDisplay();
   OLED.display();
 }
